@@ -8,7 +8,8 @@ The Plugin comes in 3 Seperate Plugins.
 #### Login Region
 The Login Region Identifies the User by some method (Currently the Remember-Username-Cookie).
 It is a close copy of the Static Region, but loads all neccessary scripts.
-##TODO Screenshot
+
+<img width="440" alt="image" src="https://user-images.githubusercontent.com/26186939/154468717-1afa2213-38a9-45a9-a452-264642eb8854.png">
 
 #### Login Process
 The Login Process verifies the authentication against registered and stored Credentials.
