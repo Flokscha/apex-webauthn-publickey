@@ -1,5 +1,5 @@
 # APEX Webauthn public-key-method
-Oracle Apex Plugin for Browser Webauthentication Public-Key API
+Oracle Apex Plugin for Browser Webauthentication Public-Key API.
 After a successfull regular Login the User can register the Device. If the Device is supported the Credentials will be saved.
 Whenever the User comes back to the Application and has a "Remember-Me"-Cookie active, then he can just Re-Authenticate with 1-click and a User Verification of the used Authenticator.
 
