@@ -217,23 +217,23 @@ CREATE OR REPLACE PACKAGE BODY WEBAUTHN_PK AS
     end if;
     apex_debug.trace('JSON clientData.type: %s', apex_json.GET_VARCHAR2('clientData.type'));
     if (apex_json.GET_VARCHAR2('clientData.type') != 'webauthn.get') then
-        raise_application_error(-20111,'Fehler bei der verifizierung von TYPE');
+        raise_application_error(-20111,'Error at verification of clientData.type');
     end if;
     apex_debug.trace('JSON clientData.challenge: %s, base64 Challenge: %s', apex_json.GET_VARCHAR2('clientData.challenge') || '=', to_base64(challenge));
     if (apex_json.GET_VARCHAR2('clientData.challenge')||'=' != to_base64(challenge)) then
-        raise_application_error(-20111,'Fehler bei der verifizierung von CHALLENGE');
+        raise_application_error(-20111,'Error at verification of CHALLENGE');
     end if;
     --TODO MIT PROTOKOLL
     apex_debug.trace('JSON clientData.origin: %s', apex_json.GET_VARCHAR2('clientData.origin'));
     if (INSTR(apex_json.GET_VARCHAR2('clientData.origin'),OWA_UTIL.GET_CGI_ENV('HTTP_HOST')) <1 ) then
-        raise_application_error(-20111,'Fehler bei der verifizierung von ORIGIN');
+        raise_application_error(-20111,'Error at verification of ORIGIN');
     end if;
 
     -- Credential ID
     credentialID := apex_json.GET_VARCHAR2('id');
     apex_debug.trace('Credential ID from JSON %s', credentialID);
     if ( credentialID is null ) then
-        raise_application_error(-20111,'Keine Credential ID gefunden!');
+        raise_application_error(-20111,'No Credential ID found!');
     end if;
 
     select
@@ -257,19 +257,19 @@ CREATE OR REPLACE PACKAGE BODY WEBAUTHN_PK AS
     Note: If using the appid extension, this step needs some special logic. See §¿10.1 FIDO AppID Extension (appid) for details.*/
     apex_debug.trace('JSON authenticatorData.rpIdHashHex: %s, HTTP_HOST_HASH: %s', apex_json.GET_VARCHAR2('authenticatorData.rpIdHashHex'), WEBAUTHN_PK.hash_sha256(OWA_UTIL.GET_CGI_ENV('HTTP_HOST')));
     if (WEBAUTHN_PK.hash_sha256(OWA_UTIL.GET_CGI_ENV('HTTP_HOST')) != apex_json.get_varchar2('authenticatorData.rpIdHashHex') ) then
-        raise_application_error(-20111,'Fehler bei der verifizierung von rpID');
+        raise_application_error(-20111,'Error at verification of authenticatorData.rpID');
     end if;
 
     --Flags User presence testen
     --TODO Flags werden gar nicht gefüllt???
     apex_debug.trace('User Presence Flag: %n. should be 1', MOD(flag,2));
     if ( MOD(flag,2) != 1 ) then
-        raise_application_error(-20111,'Fehler bei der verifizierung von USER PRESENCE FLAG');
+        raise_application_error(-20111,'Error at verification of USER PRESENCE FLAG');
     end if;
     --Flags User Verification testen
     apex_debug.trace('User Verification Flag: %n. should be 1', MOD(flag,4));
     if ( MOD(flag,4) != 1 ) then
-        raise_application_error(-20111,'Fehler bei der verifizierung von USER VERIFICATION FLAG');
+        raise_application_error(-20111,'Error at verification of USER VERIFICATION FLAG');
     end if;
 
     -- NOTE: USERHANDLE can be Null.
@@ -278,7 +278,7 @@ CREATE OR REPLACE PACKAGE BODY WEBAUTHN_PK AS
     --   -- In that case search for the USERID saved in the Authentications Table.
 
 
-    --     raise_application_error(-20111,'Fehler bei der verifizierung von UserID');
+    --     raise_application_error(-20111,'Error at verification of UserID');
     -- end if;
 
     --Let hash be the result of computing a hash over the cData using SHA-256.
@@ -306,7 +306,7 @@ CREATE OR REPLACE PACKAGE BODY WEBAUTHN_PK AS
             -- p_password => '');
     else
         apex_debug.error('Verfication not successful!');
-        raise_application_error(-20111,'Verification fehlgeschlagen');
+        raise_application_error(-20111,'Verfication not successful');
     END IF;
 
     return l_plugin;
@@ -525,14 +525,14 @@ CREATE OR REPLACE PACKAGE BODY WEBAUTHN_PK AS
     apex_json.open_object();
     -- Verify stuff
     if (apex_json.GET_VARCHAR2('response.clientDataJSON.type') != 'webauthn.create') then
-        apex_json.write('error', 'Fehler bei der verifizierung von TYPE');
+        apex_json.write('error', 'Error at verification of TYPE');
     end if;
     if (apex_json.GET_VARCHAR2('response.clientDataJSON.challenge')||'=' != to_base64(challenge)) then
-        apex_json.write('error', 'Fehler bei der verifizierung von CHALLENGE');
+        apex_json.write('error', 'Error at verification of  CHALLENGE');
     end if;
     --TODO MIT PROTOKOLL
     if (INSTR(apex_json.GET_VARCHAR2('response.clientDataJSON.origin'),OWA_UTIL.GET_CGI_ENV('HTTP_HOST')) <1 ) then
-        apex_json.write('error', 'Fehler bei der verifizierung von ORIGIN');
+        apex_json.write('error', 'Error at verification of  ORIGIN');
     end if;
 
     --Check attestationObject
