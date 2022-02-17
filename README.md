@@ -31,8 +31,13 @@ create table webauthentication (
 [Guide to Web Authentication](https://webauthn.guide/)
 [Mozilla Attestation and Assertion](https://developer.mozilla.org/en-US/docs/Web/API/Web_Authentication_API/Attestation_and_Assertion)
 
+### DEMO Application
+(On Apex.oracle.com)[https://apex.oracle.com/pls/apex/f?p=91879:home]
+using test/Test1234
+
 ### What can the Plugin do?
 - It enables passwordless authentication using a secure Browser-API
+- as the remember-username-cookie is APEX Instance wide accessible, it functions as a 1-click SSO.
 - Currently only works with APEX Users
 - Supports Windows Hello. Authenticate using the Windows PIN, Windows Password or Biometric Sensors.
 - Tested with Android Dashlane, but i guess iPhone Dashlane should do the same.
