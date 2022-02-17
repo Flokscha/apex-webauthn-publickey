@@ -7,7 +7,7 @@ DROP PACKAGE WEBAUTHN_PK;
 /*************************************
   DDL to deinstall the necessary Java
 **************************************/
-DROP JAVA SOURCE NAMED "WEBAUTHN_CRYPTO";
+DROP JAVA SOURCE "WEBAUTHN_CRYPTO";
 /
 /*************************************
   DDL to deinstall the necessary Table
