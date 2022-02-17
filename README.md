@@ -1,5 +1,9 @@
 # APEX Webauthn public-key-method
 Oracle Apex Plugin for Browser Webauthentication Public-Key API
+After a successfull regular Login the User can register the Device. If the Device is supported the Credentials will be saved.
+Whenever the User comes back to the Application and has a "Remember-Me"-Cookie active, then he can just Re-Authenticate with 1-click and a User Verification of the used Authenticator.
+
+---------------------------------------------------------------
 The Plugin comes in 3 Seperate Plugins.
 1. Login Region
 2. Login Process
@@ -47,7 +51,9 @@ Or Download it and install it yourself. The Application is in the Repository.
   - -7    ECDSA w/ SHA-256
 
 ### Todos of the Plugin
+Feel free to fork the project and contribute to it 😊
 - Support with generic Authentication Schemes
 - Translation
 - More Support for different Algorithms: It can be Extended, but the Oracle Database with Java 1.8 has very limited Support for most Cryptocraphic Keys
 - Different Methods to store last active User
+- Make User Verification choosable 
