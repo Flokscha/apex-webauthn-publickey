@@ -28,6 +28,7 @@ create table webauthentication (
 
 ### Webauthn Information
 [Guide to Web Authentication](https://webauthn.guide/)
+[Mozilla Attestation and Assertion](https://developer.mozilla.org/en-US/docs/Web/API/Web_Authentication_API/Attestation_and_Assertion)
 
 ### What can the Plugin do?
 - It enables passwordless authentication using a secure Browser-API
