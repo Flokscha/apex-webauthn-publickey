@@ -32,8 +32,9 @@ create table webauthentication (
 [Mozilla Attestation and Assertion](https://developer.mozilla.org/en-US/docs/Web/API/Web_Authentication_API/Attestation_and_Assertion)
 
 ### DEMO Application
-(On Apex.oracle.com)[https://apex.oracle.com/pls/apex/f?p=91879:home]
+[On Apex.oracle.com](https://apex.oracle.com/pls/apex/f?p=91879:home)
 using test/Test1234
+Or Download it and install it yourself. The Application is in the Repository.
 
 ### What can the Plugin do?
 - It enables passwordless authentication using a secure Browser-API
