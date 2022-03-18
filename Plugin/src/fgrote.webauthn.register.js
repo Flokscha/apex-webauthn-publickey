@@ -77,6 +77,24 @@ function _get_challenge(pAjaxIdent, lSpinner$) {
           },
           clientExtensionResults: credential.getClientExtensionResults(),
         }
+
+
+        // authenticatorData
+        apex.debug.trace('destructering AuthenticatorData...')
+        let authenticatorData = credential.response.getAuthenticatorData()
+        let rpIdHash = new DataView(authenticatorData, 0, 32)
+        let flags = new DataView(authenticatorData, 32, 1)
+        let signCount = new DataView(authenticatorData, 33, 4)
+        credentialJSON.response.authenticatorData = {
+          rpIdHashHex: _webauthn_buf2hex(rpIdHash.buffer.slice(0, 32)),
+          flags: flags.getUint8(),
+          signCount: signCount.getUint32(),
+        }
+        credentialJSON.response.authenticatorDataHex = _webauthn_buf2hex(
+          authenticatorData
+        )
+
+
         apex.debug.trace(credentialJSON)
 
         // Weiterer Call zum registrieren.

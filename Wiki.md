@@ -37,6 +37,7 @@ https://www.w3.org/TR/webauthn-2/#sctn-sample-aborting
 1. Last Used Date for Credential.
 2. Userspecific Name
 3. Created. Updated.
+4. Sign Counter for Duplication Detection
 
 
 Kapitel 5 Nochmal in Ruhe durchlesen

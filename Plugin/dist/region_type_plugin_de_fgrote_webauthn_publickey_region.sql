@@ -14,7 +14,7 @@ whenever sqlerror exit sql.sqlcode rollback
 begin
 wwv_flow_api.import_begin (
  p_version_yyyy_mm_dd=>'2021.10.15'
-,p_release=>'21.2.0'
+,p_release=>'21.2.5'
 ,p_default_workspace_id=>23838716055288612897
 ,p_default_application_id=>52927
 ,p_default_id_offset=>10923549946542564863
@@ -28,14 +28,14 @@ prompt APPLICATION 52927 - Web Auth
 -- Application Export:
 --   Application:     52927
 --   Name:            Web Auth
---   Date and Time:   12:22 Thursday February 17, 2022
+--   Date and Time:   20:34 Freitag März 18, 2022
 --   Exported By:     GERMANBEVER@GMAIL.COM
 --   Flashback:       0
 --   Export Type:     Component Export
 --   Manifest
 --     PLUGIN: 40260738131860348683
 --   Manifest End
---   Version:         21.2.0
+--   Version:         21.2.5
 --   Instance ID:     63113759365424
 --
 
@@ -53,8 +53,8 @@ wwv_flow_api.create_plugin(
 ,p_display_name=>'Web Authentication Public Key Region'
 ,p_supported_ui_types=>'DESKTOP'
 ,p_api_version=>2
-,p_render_function=>'WEBAUTHN_PK.login_region_render'
-,p_ajax_function=>'WEBAUTHN_PK.login_region_ajax'
+,p_render_function=>'WEBAUTHN_PK_DEV.login_region_render'
+,p_ajax_function=>'WEBAUTHN_PK_DEV.login_region_ajax'
 ,p_standard_attributes=>'SOURCE_PLAIN:ESCAPE_OUTPUT:VALUE_CSS:VALUE_ATTRIBUTE'
 ,p_substitute_attributes=>true
 ,p_subscribe_plugin_settings=>true
@@ -94,6 +94,57 @@ wwv_flow_api.create_plugin_attribute(
 ,p_attribute_type=>'PAGE ITEM'
 ,p_is_required=>true
 ,p_is_translatable=>false
+);
+wwv_flow_api.create_plugin_attribute(
+ p_id=>wwv_flow_api.id(49147086789565862607)
+,p_plugin_id=>wwv_flow_api.id(40260738131860348683)
+,p_attribute_scope=>'COMPONENT'
+,p_attribute_sequence=>4
+,p_display_sequence=>40
+,p_prompt=>'User Verification'
+,p_attribute_type=>'SELECT LIST'
+,p_is_required=>true
+,p_default_value=>'discouraged'
+,p_is_translatable=>false
+,p_lov_type=>'STATIC'
+,p_help_text=>'A WebAuthn Relying Party may require user verification for some of its operations but not for others, and may use this type to express its needs.'
+);
+wwv_flow_api.create_plugin_attr_value(
+ p_id=>wwv_flow_api.id(49147101029145864063)
+,p_plugin_attribute_id=>wwv_flow_api.id(49147086789565862607)
+,p_display_sequence=>10
+,p_display_value=>'discouraged'
+,p_return_value=>'discouraged'
+,p_help_text=>'This value indicates that the Relying Party does not want user verification employed during the operation (e.g., in the interest of minimizing disruption to the user interaction flow).'
+);
+wwv_flow_api.create_plugin_attr_value(
+ p_id=>wwv_flow_api.id(49147102589846865254)
+,p_plugin_attribute_id=>wwv_flow_api.id(49147086789565862607)
+,p_display_sequence=>20
+,p_display_value=>'preferred'
+,p_return_value=>'preferred'
+,p_help_text=>'This value indicates that the Relying Party prefers user verification for the operation if possible, but will not fail the operation if the response does not have the UV flag set.'
+);
+wwv_flow_api.create_plugin_attr_value(
+ p_id=>wwv_flow_api.id(49147164312053482287)
+,p_plugin_attribute_id=>wwv_flow_api.id(49147086789565862607)
+,p_display_sequence=>30
+,p_display_value=>'required'
+,p_return_value=>'required'
+,p_help_text=>'This value indicates that the Relying Party requires user verification for the operation and will fail the operation if the response does not have the UV flag set.'
+);
+wwv_flow_api.create_plugin_attribute(
+ p_id=>wwv_flow_api.id(49147676624176884055)
+,p_plugin_id=>wwv_flow_api.id(40260738131860348683)
+,p_attribute_scope=>'COMPONENT'
+,p_attribute_sequence=>5
+,p_display_sequence=>50
+,p_prompt=>'Timeout'
+,p_attribute_type=>'INTEGER'
+,p_is_required=>true
+,p_default_value=>'60000'
+,p_is_translatable=>false
+,p_help_text=>'Time in ms for Timeout'
 );
 wwv_flow_api.create_plugin_std_attribute(
  p_id=>wwv_flow_api.id(40266510873234542513)
