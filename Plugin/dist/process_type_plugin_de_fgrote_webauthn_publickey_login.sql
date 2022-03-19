@@ -28,7 +28,7 @@ prompt APPLICATION 52927 - Web Auth
 -- Application Export:
 --   Application:     52927
 --   Name:            Web Auth
---   Date and Time:   20:34 Freitag März 18, 2022
+--   Date and Time:   10:00 Samstag März 19, 2022
 --   Exported By:     GERMANBEVER@GMAIL.COM
 --   Flashback:       0
 --   Export Type:     Component Export
@@ -85,6 +85,70 @@ wwv_flow_api.create_plugin_attribute(
 ,p_attribute_type=>'PAGE ITEM'
 ,p_is_required=>true
 ,p_is_translatable=>false
+);
+wwv_flow_api.create_plugin_attribute(
+ p_id=>wwv_flow_api.id(49242101012846498429)
+,p_plugin_id=>wwv_flow_api.id(40243499165895683198)
+,p_attribute_scope=>'COMPONENT'
+,p_attribute_sequence=>3
+,p_display_sequence=>30
+,p_prompt=>'User Verification'
+,p_attribute_type=>'SELECT LIST'
+,p_is_required=>true
+,p_default_value=>'discouraged'
+,p_is_translatable=>false
+,p_lov_type=>'STATIC'
+,p_help_text=>'A WebAuthn Relying Party may require user verification for some of its operations but not for others, and may use this type to express its needs.'
+);
+wwv_flow_api.create_plugin_attr_value(
+ p_id=>wwv_flow_api.id(49242190016408116075)
+,p_plugin_attribute_id=>wwv_flow_api.id(49242101012846498429)
+,p_display_sequence=>10
+,p_display_value=>'discouraged'
+,p_return_value=>'discouraged'
+,p_help_text=>'This value indicates that the Relying Party does not want user verification employed during the operation (e.g., in the interest of minimizing disruption to the user interaction flow).'
+);
+wwv_flow_api.create_plugin_attr_value(
+ p_id=>wwv_flow_api.id(49242192615210117971)
+,p_plugin_attribute_id=>wwv_flow_api.id(49242101012846498429)
+,p_display_sequence=>20
+,p_display_value=>'preferred'
+,p_return_value=>'preferred'
+,p_help_text=>'This value indicates that the Relying Party prefers user verification for the operation if possible, but will not fail the operation if the response does not have the UV flag set.'
+);
+wwv_flow_api.create_plugin_attr_value(
+ p_id=>wwv_flow_api.id(49242194222006119050)
+,p_plugin_attribute_id=>wwv_flow_api.id(49242101012846498429)
+,p_display_sequence=>30
+,p_display_value=>'required'
+,p_return_value=>'required'
+,p_help_text=>'This value indicates that the Relying Party requires user verification for the operation and will fail the operation if the response does not have the UV flag set.'
+);
+wwv_flow_api.create_plugin_attribute(
+ p_id=>wwv_flow_api.id(49251132934386717490)
+,p_plugin_id=>wwv_flow_api.id(40243499165895683198)
+,p_attribute_scope=>'COMPONENT'
+,p_attribute_sequence=>4
+,p_display_sequence=>40
+,p_prompt=>'Stop on Cloned Risk'
+,p_attribute_type=>'CHECKBOX'
+,p_is_required=>false
+,p_default_value=>'N'
+,p_is_translatable=>false
+,p_help_text=>wwv_flow_string.join(wwv_flow_t_varchar2(
+'If authData.signCount is',
+'greater than storedSignCount:',
+'Update storedSignCount to be the value of authData.signCount.',
+'less than or equal to storedSignCount:',
+'This is a signal that the authenticator may be cloned, i.e. at least two copies of the credential private key may exist and are being used in parallel. Relying Parties should incorporate this information into their risk scoring. Whether the Relying P'
+||'arty updates storedSignCount in this case, or not, or fails the authentication ceremony or not, is Relying Party-specific.'))
+,p_attribute_comment=>wwv_flow_string.join(wwv_flow_t_varchar2(
+'If authData.signCount is',
+'greater than storedSignCount:',
+'Update storedSignCount to be the value of authData.signCount.',
+'less than or equal to storedSignCount:',
+'This is a signal that the authenticator may be cloned, i.e. at least two copies of the credential private key may exist and are being used in parallel. Relying Parties should incorporate this information into their risk scoring. Whether the Relying P'
+||'arty updates storedSignCount in this case, or not, or fails the authentication ceremony or not, is Relying Party-specific.'))
 );
 end;
 /

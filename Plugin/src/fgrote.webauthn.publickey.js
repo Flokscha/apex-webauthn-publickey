@@ -67,12 +67,14 @@ function _webauthn_publickey_credentials(pAjaxIdent) {
           'found ' + data.allowCredentials.length + ' credential(s)'
         )
         for (let idx of data.allowCredentials.keys()) {
+          data.allowCredentials[idx].idOrig = data.allowCredentials[idx].id
           data.allowCredentials[idx].id = _webauthn_hexStringToArrayBuffer(
-            data.allowCredentials[idx].id
+            data.allowCredentials[idx].idRaw
           )
         }
 
         // Nur Wenn Credentials bereits Vorhanden sind Einlogbar machen
+        // Gibt es irgendwie eine bessere Art Informationen zu teilen?
         window[pAjaxIdent + 'credentials'] = data
 
         apex.debug.trace(window[pAjaxIdent + 'credentials'])
@@ -98,11 +100,27 @@ function _webauthn_publickey_login(pAjaxIdent, pAssertionItem) {
   }
 
   apex.debug.trace('Logging in with Web Auth...')
+  /*
+  2. Call navigator.credentials.get() and pass options as
+  the publicKey option. Let credential be the result
+  of the successfully resolved promise. If the promise
+  is rejected, abort the ceremony with a user-visible
+  error, or otherwise guide the user experience as
+  might be determinable from the context available in
+  the rejected promise. For information on different error
+  contexts and the circumstances leading to them, see
+  § 6.3.3 The authenticatorGetAssertion Operation.
+  */
   navigator.credentials
     .get({
       publicKey: window[pAjaxIdent + 'credentials'],
     })
     .then((resp) => {
+      /*
+      3. Let response be credential.response.
+      If response is not an
+       instance of AuthenticatorAssertionResponse, abort the ceremony with a user-visible error.
+      */
       if (!resp) {
         apex.debug.error('Credentials Response is empty!')
         throw "No Credentials found. Can't use Web Authentication."
@@ -111,12 +129,6 @@ function _webauthn_publickey_login(pAjaxIdent, pAssertionItem) {
 
       let decoder = new TextDecoder()
       const serverAssertion = {}
-
-      // USER HANDLE = ID
-      if (resp.response.userHandle) {
-        apex.debug.trace('decoding userhandle...')
-        serverAssertion.userId = decoder.decode(resp.response.userHandle) // USER_ID
-      }
 
       // clientDataJSON
       apex.debug.trace('decoding clientDataJSON...')
@@ -149,6 +161,7 @@ function _webauthn_publickey_login(pAjaxIdent, pAssertionItem) {
       serverAssertion.signatureHex = _webauthn_buf2hex(resp.response.signature)
       serverAssertion.signature = resp.response.signature
 
+      /* 4. Let clientExtensionResults be the result of calling credential.getClientExtensionResults().*/
       // getClientExtensionResults
       apex.debug.trace('working on getClientExtensionResults...')
       serverAssertion.getClientExtensionResultsHex = _webauthn_buf2hex(
@@ -158,6 +171,49 @@ function _webauthn_publickey_login(pAjaxIdent, pAssertionItem) {
       // Credential ID
       apex.debug.trace('working on CredentialID...')
       serverAssertion.id = resp.id
+
+      /*
+      5. If options.allowCredentials is not empty, verify that 
+      credential.id identifies one of the public key credentials
+      listed in options.allowCredentials.
+      */
+      //  const enc = new TextEncoder()
+      apex.debug.trace('testing Allowed Credentials...')
+      //  apex.debug.trace('attested ID:', resp.id) //ohne Hex
+      //  window[pAjaxIdent + 'credentials'].allowCredentials.forEach((elem, idx) => {
+      //    apex.debug.trace('attested Credential :', elem);
+      //    apex.debug.trace('attested Credential idx:', idx, elem.idOrig);
+      //  })
+      if (
+        window[pAjaxIdent + 'credentials'].allowCredentials.some(
+          (elem) => elem.idOrig === resp.id
+        )
+      ) {
+        apex.debug.trace('Credential Match. A-OK!')
+      } else {
+        apex.debug.error('Credential doesn`t match with allowed Credentials!')
+        throw 'Abort Login Process! Credentials don`t match!'
+      }
+
+      /*
+      6. Identify the user being authenticated and verify 
+      that this user is the owner of the public key credential
+      source credentialSource identified by credential.id:
+      - If the user was identified before the authentication 
+      ceremony was initiated, e.g., via a username or cookie,
+      verify that the identified user is the owner of credentialSource. 
+      If response.userHandle is present, let userHandle be its value. 
+      Verify that userHandle also maps to the same user.
+      TODO
+      - If the user was not identified before the authentication ceremony 
+      was initiated, verify that response.userHandle is present, and that 
+      the user identified by this value is the owner of credentialSource.
+      */
+      // USER HANDLE = ID
+      if (resp.response.userHandle) {
+        apex.debug.trace('decoding userhandle...')
+        serverAssertion.userId = decoder.decode(resp.response.userHandle) // USER_ID
+      }
 
       apex.debug.trace('Final Assertion:', serverAssertion)
 

@@ -10,6 +10,8 @@ create table webauthentication (
     userid                         varchar2(255 char),
     credentialId                   varchar2(255 char),
     signature_counter              number,
+    signature_counter_risk         number default on null 0,
+    last_active                    date default on null sysdate,
     transports                     varchar2(255 char),
     responsejson                   clob check (responsejson is json)
 )
@@ -152,7 +154,6 @@ CREATE OR REPLACE PACKAGE WEBAUTHN_PK AS
 end WEBAUTHN_PK;
 /
 CREATE OR REPLACE PACKAGE BODY WEBAUTHN_PK AS
-
   RPID_HASHED EXCEPTION;
   PRAGMA EXCEPTION_INIT(RPID_HASHED, -20013);
   USERPRESENT_MISSING EXCEPTION;
@@ -194,6 +195,8 @@ CREATE OR REPLACE PACKAGE BODY WEBAUTHN_PK AS
       verification_error EXCEPTION; 
       PRAGMA exception_init(verification_error, -20111); 
  
+      -- 8. Let cData, authData and sig denote the value of response’s
+      -- clientDataJSON, authenticatorData, and signature respectively.
       challenge           VARCHAR(128) := v(p_process.attribute_01); 
       flag                number; 
       hash                RAW(4000); 
@@ -203,13 +206,16 @@ CREATE OR REPLACE PACKAGE BODY WEBAUTHN_PK AS
  
       lerrors             Varchar2(4000); 
  
-      credentialID        Varchar2(2000); 
+      lCredentialId       Varchar2(2000); 
       credentialPublicKey RAW(2000); 
-      publicKeyAlg        varchar2(128); 
+      publicKeyAlg        varchar2(128);
+      lSignatureCounter   Number;
  
       verified            Varchar2(32) := 'false'; 
  
       arg1                Varchar2(4000)  := v(p_process.attribute_02); 
+      userVerification    Varchar2(64)    := p_process.attribute_03;
+      stopOnRisk          Varchar2(8)     := p_process.attribute_04;
  
       function to_base64(t in varchar2) return varchar2 is 
       begin 
@@ -221,107 +227,259 @@ CREATE OR REPLACE PACKAGE BODY WEBAUTHN_PK AS
         apex_plugin_util.debug_process(p_plugin, p_process); 
       END IF; 
  
+      /* 
+      8. Let JSONtext be the result of running UTF-8 decode on the value of cData.
+      */
+
+      /*
+      9. Let C, the client data claimed as used for the signature, be the result 
+      of running an implementation-specific JSON parser on JSONtext.
+      */
       apex_debug.trace('JSON from Assertion: %s', arg1); 
       apex_debug.trace('challenge from WEB_AUTH_CHALLENGE: %s', challenge); 
- 
       apex_json.parse(arg1); 
  
-      -- Verify 
-      if (challenge is null) then 
-          raise_application_error(-20111,'Keine Challenge erhalten.'); 
-      end if; 
-      apex_debug.trace('JSON clientData.type: %s', apex_json.GET_VARCHAR2('clientData.type')); 
-      if (apex_json.GET_VARCHAR2('clientData.type') != 'webauthn.get') then 
-          raise_application_error(-20111,'Error at verification of clientData.type'); 
-      end if; 
-      apex_debug.trace('JSON clientData.challenge: %s, base64 Challenge: %s', apex_json.GET_VARCHAR2('clientData.challenge') || '=', to_base64(challenge)); 
-      if (apex_json.GET_VARCHAR2('clientData.challenge')||'=' != to_base64(challenge)) then 
-          raise_application_error(-20111,'Error at verification of CHALLENGE'); 
-      end if; 
-      --TODO MIT PROTOKOLL 
-      apex_debug.trace('JSON clientData.origin: %s', apex_json.GET_VARCHAR2('clientData.origin')); 
-      if (INSTR(apex_json.GET_VARCHAR2('clientData.origin'),OWA_UTIL.GET_CGI_ENV('HTTP_HOST')) <1 ) then 
-          raise_application_error(-20111,'Error at verification of ORIGIN'); 
-      end if; 
- 
-      -- Credential ID 
-      credentialID := apex_json.GET_VARCHAR2('id'); 
-      apex_debug.trace('Credential ID from JSON %s', credentialID); 
-      if ( credentialID is null ) then 
-          raise_application_error(-20111,'No Credential ID found!'); 
-      end if; 
- 
-      select 
-        JSON_VALUE(responsejson, '$.response.publicKey' RETURNING VARCHAR2(2000)) as publicKey 
-      , JSON_VALUE(responsejson, '$.response.publicKeyAlg' RETURNING VARCHAR2(128)) as publicKeyAlg 
-      , USERID 
-      into credentialPublicKey, publicKeyAlg, userid 
-      from webauthentication 
-      where JSON_VALUE(responsejson, '$.id' RETURNING VARCHAR2(255)) = credentialID 
-      ; 
- 
-      apex_debug.trace('PublicKey HEX: %s', credentialPublicKey); 
-      apex_debug.trace('PublicKey ALG: %s', publicKeyAlg); 
- 
-      --TODO Fixme later 
-      if (publicKeyAlg not in (-7, -257)) then 
-          raise_application_error(-20111,'Ungültige Key Algorthm angegeben'); 
-      end if; 
- 
-        /*Verify that the rpIdHash in authData is the SHA-256 hash of the RP ID expected by the Relying Party. 
-      Note: If using the appid extension, this step needs some special logic. See §¿10.1 FIDO AppID Extension (appid) for details.*/ 
-      apex_debug.trace('JSON authenticatorData.rpIdHashHex: %s, HTTP_HOST_HASH: %s', apex_json.GET_VARCHAR2('authenticatorData.rpIdHashHex'), WEBAUTHN_PK.hash_sha256(OWA_UTIL.GET_CGI_ENV('HTTP_HOST'))); 
-      if (WEBAUTHN_PK.hash_sha256(OWA_UTIL.GET_CGI_ENV('HTTP_HOST')) != apex_json.get_varchar2('authenticatorData.rpIdHashHex') ) then 
-          raise_application_error(-20111,'Error at verification of authenticatorData.rpID'); 
-      end if; 
- 
-      --Flags User presence testen 
-      --TODO Flags werden gar nicht gefüllt??? 
-      apex_debug.trace('User Presence Flag: %n. should be 1', MOD(flag,2)); 
-      if ( MOD(flag,2) != 1 ) then 
-          raise_application_error(-20111,'Error at verification of USER PRESENCE FLAG'); 
-      end if; 
-      --Flags User Verification testen 
-      apex_debug.trace('User Verification Flag: %n. should be 1', MOD(flag,4)); 
-      if ( MOD(flag,4) != 1 ) then 
-          raise_application_error(-20111,'Error at verification of USER VERIFICATION FLAG'); 
-      end if; 
- 
+      -- 7.2. Verifying an Authentication Assertion 
+      -- for more information: https://www.w3.org/TR/webauthn-2/#sctn-verifying-assertion
+
+      /*
+      6. Identify the user being authenticated and verify that this user is the owner
+      of the public key credential source credentialSource identified by credential.id:
+
+      If the user was identified before the authentication ceremony was initiated,
+      e.g., via a username or cookie,
+      verify that the identified user is the owner of credentialSource. If
+      response.userHandle is present, let userHandle be its value. Verify that
+      userHandle also maps to the same user.
+
+      If the user was not identified before the authentication ceremony was initiated,
+      verify that response.userHandle is present, and that the user identified by this
+      value is the owner of credentialSource.
+      */
       -- NOTE: USERHANDLE can be Null. 
-      apex_debug.trace('JSON userID: %s, Username: %s', apex_json.GET_Varchar2('userId'), APEX_UTIL.GET_USERNAME(apex_json.GET_Varchar2('userId'))); 
-      -- if (APEX_UTIL.GET_USERNAME(apex_json.GET_Varchar2('userId')) is null) then 
-      --   -- In that case search for the USERID saved in the Authentications Table. 
+      declare
+        json_user_id  Varchar2(4000);
+      begin
+        json_user_id := apex_json.GET_Varchar2('userId');
+        apex_debug.trace('JSON userID: %s, Username: %s', json_user_id, APEX_UTIL.GET_USERNAME(json_user_id)); 
+        if (json_user_id is not null and userid != json_user_id) then 
+          raise_application_error(-20456,'Error at verification of userID. userID for Credential is not the same!'); --FIXME
+        else
+          apex_debug.trace('Userhandle is not present. can not verify.'); 
+        end if;
+      end;
+
+      /*
+      7. Using credential.id (or credential.rawId, if base64url encoding is
+      inappropriate for your use case), look up the corresponding credential
+      public key and let credentialPublicKey be that credential public key.
+      */
+      -- Credential ID 
+      declare
+
+      begin
+        lCredentialId := apex_json.GET_VARCHAR2('id'); 
+        apex_debug.trace('Credential ID from JSON %s', lCredentialId); 
+        if ( lCredentialId is null ) then 
+            raise_application_error(-20111,'No Credential ID found!'); 
+        end if; 
+  
+        select 
+          JSON_VALUE(responsejson, '$.response.publicKey' RETURNING VARCHAR2(2000)) as publicKey 
+        , JSON_VALUE(responsejson, '$.response.publicKeyAlg' RETURNING VARCHAR2(128)) as publicKeyAlg 
+        , USERID 
+        , signature_counter
+        into credentialPublicKey, publicKeyAlg, userid, lSignatureCounter
+        from webauthentication 
+        where credentialId = lCredentialId 
+        for update
+        ; 
+  
+        apex_debug.trace('PublicKey HEX: %s', credentialPublicKey); 
+        apex_debug.trace('PublicKey ALG: %s', publicKeyAlg);
+
+        -- Set last_active Time
+        update webAuthentication
+           set last_active = sysdate
+         where credentialId = lCredentialId; 
+      end;
+
+      /*
+      11. Verify that the value of C.type is the string webauthn.get.
+      */
+      begin
+        apex_debug.trace('JSON clientData.type: %s', apex_json.GET_VARCHAR2('clientData.type')); 
+        if (apex_json.GET_VARCHAR2('clientData.type') != 'webauthn.get') then 
+            raise_application_error(-20111,'Error at verification of clientData.type'); 
+        end if; 
+      end;
+
+  	  /*
+      12. Verify that the value of C.challenge equals the base64url encoding of options.challenge.
+      */
+      begin
+        if (challenge is null) then 
+            raise_application_error(-20111,'Keine Challenge erhalten.'); 
+        end if; 
+        apex_debug.trace('JSON clientData.challenge: %s, base64 Challenge: %s', apex_json.GET_VARCHAR2('clientData.challenge') || '=', to_base64(challenge)); 
+        if (apex_json.GET_VARCHAR2('clientData.challenge')||'=' != to_base64(challenge)) then 
+            raise_application_error(-20111,'Error at verification of CHALLENGE'); 
+        end if; 
+      end;
+
+      /*
+      13. Verify that the value of C.origin matches the Relying Party's origin.
+      */
+      --TODO MIT PROTOKOLL 
+      begin
+        apex_debug.trace('JSON clientData.origin: %s', apex_json.GET_VARCHAR2('clientData.origin')); 
+        if (INSTR(apex_json.GET_VARCHAR2('clientData.origin'),OWA_UTIL.GET_CGI_ENV('HTTP_HOST')) <1 ) then 
+            raise_application_error(-20111,'Error at verification of ORIGIN'); 
+        end if; 
+      end;
+
+      /*
+      14. Verify that the value of C.tokenBinding.status matches the state 
+      of Token Binding for the TLS connection over which the attestation was 
+      obtained. If Token Binding was used on that TLS connection, also verify 
+      that C.tokenBinding.id matches the base64url encoding of the Token 
+      Binding ID for the connection.
+      */
+      -- TLS stuff not sure if that is possible on Ora-DB
+
+      /*
+      15. Verify that the rpIdHash in authData is the SHA-256 hash of the 
+      RP ID expected by the Relying Party. Note: If using the appid extension, 
+      this step needs some special logic. See § 10.1 FIDO AppID Extension (appid) for details.
+      */
+      begin
+        apex_debug.trace('JSON authenticatorData.rpIdHashHex: %s, HTTP_HOST_HASH: %s', apex_json.GET_VARCHAR2('authenticatorData.rpIdHashHex'), WEBAUTHN_PK.hash_sha256(OWA_UTIL.GET_CGI_ENV('HTTP_HOST'))); 
+        if (WEBAUTHN_PK.hash_sha256(OWA_UTIL.GET_CGI_ENV('HTTP_HOST')) != apex_json.get_varchar2('authenticatorData.rpIdHashHex') ) then 
+            raise_application_error(-20111,'Error at verification of authenticatorData.rpID'); 
+        end if; 
+      end;
+
+      /*
+      16. Verify that the User Present bit of the flags in authData is set.
+      */
+      begin
+        flag := apex_json.get_number('authenticatorData.flags');
+        apex_debug.trace('User Presence Flag: %s. %s should be 1', flag, BITAND(flag, 1)); 
+        if ( BITAND(flag, 1) = 0 ) then 
+            raise_application_error(-20111,'Verification Error User Presence Flag is not set'); 
+        end if; 
+      end;
+
+      /*
+      17. If user verification is required for this assertion, 
+      verify that the User Verified bit of the flags in authData is set.
+      */
+      begin
+        flag := apex_json.get_number('authenticatorData.flags');
+        apex_debug.trace('User Verification Flag: %s. %s should be 4', flag, BITAND(flag, 4));
+        apex_debug.trace('User Verification attribute %s', userVerification);
+        if ( userVerification in ('required') and BITAND(flag, 4) = 0 ) then 
+            raise_application_error(-20111,'Verification Error User Verification Flag is not set'); 
+        end if; 
+      end;
+
+      /*
+      18. Verify that the values of the client extension outputs in clientExtensionResults 
+      and the authenticator extension outputs in the extensions in authData are as expected, 
+      considering the client extension input values that were given in options.extensions 
+      and any specific policy of the Relying Party regarding unsolicited extensions, i.e., 
+      those that were not specified as part of options.extensions. In the general case, 
+      the meaning of "are as expected" is specific to the Relying Party and which extensions are in use.
+      */
+      --TODO
+
+      /*
+      19. Let hash be the result of computing a hash over the cData using SHA-256.
+      */
+      begin
+        hash        := WEBAUTHN_PK.hash_sha256(apex_json.get_varchar2('clientDataJSON')); 
+        apex_debug.trace('ClientDataJSON Hash: %s', hash); 
+        sig         := HEXTORAW(apex_json.get_varchar2('signatureHex')); 
+        apex_debug.trace('Signature: %s', sig); 
+        combined    := UTL_RAW.CONCAT(HEXTORAW(apex_json.get_varchar2('authenticatorDataHex')), hash); 
+        apex_debug.trace('combined: %s', combined); 
+      end;
+
+      /*
+      20. Using credentialPublicKey, verify that sig is a valid 
+      signature over the binary concatenation of authData and hash.
+      */
+      begin
+        --TODO Fixme later 
+        if (publicKeyAlg not in (-7, -257)) then 
+            raise_application_error(-20111,'Ungültige Key Algorthm angegeben'); 
+        end if; 
+
+        CASE publicKeyAlg 
+          WHEN '-7' then verified := WEBAUTHN_PK.verify_ecsha256(combined, credentialPublicKey, sig); 
+          WHEN '-257' then verified := WEBAUTHN_PK.verify_rsha256(combined, credentialPublicKey, sig); 
+        END CASE;
+
+        if (verified = 'false') then
+          apex_debug.error('Verfication not successful!'); 
+          raise_application_error(-20111,'Verfication not successful'); 
+        end if;
+
+      end;
+
+      /*
+      21. Let storedSignCount be the stored signature counter value associated 
+      with credential.id. If authData.signCount is nonzero or storedSignCount 
+      is nonzero, then run the following sub-step:
+      - If authData.signCount is greater than storedSignCount:
+      Update storedSignCount to be the value of authData.signCount.
+      - less than or equal to storedSignCount: This is a signal that the authenticator 
+      may be cloned, i.e. at least two copies of the credential private key may exist 
+      and are being used in parallel. Relying Parties should incorporate this information 
+      into their risk scoring. Whether the Relying Party updates storedSignCount in this 
+      case, or not, or fails the authentication ceremony or not, is Relying Party-specific.
+      */
+      declare
+        storedSignCount Number := lSignatureCounter;
+        authDataSignCount Number := apex_json.get_number('authenticatorData.signCount');
+      begin
+        apex_debug.trace('Compare SignCounts: stored: %s, authData: %s', storedSignCount, authDataSignCount);
+        if (authDataSignCount > 0 or storedSignCount > 0) then
+          --If authData.signCount is greater than storedSignCount:
+          if (authDataSignCount > storedSignCount) then
+            update webAuthentication
+            set signature_counter = authDataSignCount
+            where credentialId = lCredentialId;
+          elsif (authDataSignCount < storedSignCount) then
+            --Risk of cloned Authenticator
+            apex_debug.error('Risk of cloned Authenticator! CredentialID %s Sign Counts do not add up. stored: %s, authData: %s'
+            , lCredentialId, storedSignCount, authDataSignCount);
+            update webAuthentication
+            set signature_counter_risk = signature_counter_risk + 1
+              --signature_counter = authDataSignCount
+            where credentialId = lCredentialId;
+
+            apex_debug.error('DEBUG: stopOnRisk value is: %s', stopOnRisk);
+            if (stopOnRisk != 'N') then
+              raise_application_error(20111, 'Stopped Authentication as the Risk of cloned Authenticator is present');
+            end if;
+
+          end if;
+
+        end if;
+      end;
  
- 
-      --     raise_application_error(-20111,'Error at verification of UserID'); 
-      -- end if; 
- 
-      --Let hash be the result of computing a hash over the cData using SHA-256. 
-      hash        := WEBAUTHN_PK.hash_sha256(apex_json.get_varchar2('clientDataJSON')); 
-      apex_debug.trace('ClientDataJSON Hash: %s', hash); 
-      sig         := HEXTORAW(apex_json.get_varchar2('signatureHex')); 
-      apex_debug.trace('Signature: %s', sig); 
-      combined    := UTL_RAW.CONCAT(HEXTORAW(apex_json.get_varchar2('authenticatorDataHex')), hash); 
-      apex_debug.trace('combined: %s', combined); 
- 
-      CASE publicKeyAlg 
-        WHEN '-7' then verified := WEBAUTHN_PK.verify_ecsha256(combined, credentialPublicKey, sig); 
-        WHEN '-257' then verified := WEBAUTHN_PK.verify_rsha256(combined, credentialPublicKey, sig); 
-      END CASE; 
- 
+      -- APEX Successfull Verification. Logging in now
       IF (verified = 'true') THEN 
           -- apex_debug.trace('Redirect after login to page: '||apex_string.split(v('FSP_AFTER_LOGIN_URL'), ':')(2)); --Not working with Friendly URLS 
           apex_debug.trace('Redirect after login to page: '||v('FSP_AFTER_LOGIN_URL')); 
           -- APEX_AUTHENTICATION.POST_LOGIN (  
           apex_debug.trace('Verfication successful!'); 
           APEX_CUSTOM_AUTH.POST_LOGIN (  
-              APEX_UTIL.GET_USERNAME(userid),  
+              APEX_UTIL.GET_USERNAME(userid),  --TODO Use of Username
               p_session_id  => V('APP_SESSION'), 
               p_app_page    => V('APP_ID')||':'||'home'); --Currently redirecting to Home --FIXME 
-              -- p_password => ''); 
-      else 
-          apex_debug.error('Verfication not successful!'); 
-          raise_application_error(-20111,'Verfication not successful'); 
+              -- p_password => '');
       END IF; 
  
       return l_plugin; 
@@ -378,7 +536,13 @@ CREATE OR REPLACE PACKAGE BODY WEBAUTHN_PK AS
  
       challenge     RAW(32) := SYS_GUID(); 
       lusername     Varchar2(255); 
- 
+      /*
+      1.  Let options be a new PublicKeyCredentialRequestOptions structure
+       configured to the Relying Party's needs for the ceremony.
+
+      If options.allowCredentials is present, the transports member of each item
+       SHOULD be set to the value returned by credential.response.getTransports()
+        when the corresponding credential was registered.*/
       procedure jsonCredentialRequestOptions as 
           l_transports    apex_json.t_values := apex_json.t_values(); 
  
@@ -390,13 +554,14 @@ CREATE OR REPLACE PACKAGE BODY WEBAUTHN_PK AS
         APEX_JSON.OPEN_ARRAY('allowCredentials'); 
         for rec in ( 
           select username, userid 
-          , JSON_VALUE(responsejson, '$.rawId' RETURNING VARCHAR2(2000)) as clientId 
+          , JSON_VALUE(responsejson, '$.rawId' RETURNING VARCHAR2(2000)) as clientIdRaw
+          , JSON_VALUE(responsejson, '$.id' RETURNING VARCHAR2(2000)) as clientId
           , JSON_VALUE(responsejson, '$.type' RETURNING VARCHAR2(100)) as type 
           , JSON_VALUE(responsejson, '$.response.transports[*]' RETURNING VARCHAR2(255)) as transports 
           from webauthentication 
           where UPPER(USERNAME) = lusername 
         ) loop 
-          if (rec.clientId is not null or rec.clientId != '') then 
+          if (rec.clientIdRaw is not null or rec.clientIdRaw != '') then 
           -- TODO FIX transports. multiple. or none 
             APEX_JSON.OPEN_OBJECT(); 
               apex_json.open_array('transports'); 
@@ -404,6 +569,7 @@ CREATE OR REPLACE PACKAGE BODY WEBAUTHN_PK AS
               APEX_JSON.CLOSE_ARRAY(); 
               APEX_JSON.WRITE('type', rec.type); 
               APEX_JSON.WRITE('id', rec.clientId); 
+              APEX_JSON.WRITE('idRaw', rec.clientIdRaw); 
             APEX_JSON.CLOSE_OBJECT(); 
           end if; 
         end loop; 
