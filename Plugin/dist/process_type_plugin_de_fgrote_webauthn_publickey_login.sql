@@ -54,7 +54,7 @@ wwv_flow_api.create_plugin(
 ,p_supported_ui_types=>'DESKTOP'
 ,p_supported_component_types=>'APEX_APPLICATION_PAGE_PROC:APEX_APPLICATION_PAGE_ITEMS'
 ,p_api_version=>2
-,p_execution_function=>'WEBAUTHN_PK_DEV.login_process'
+,p_execution_function=>'WEBAUTHN_PK.login_process'
 ,p_substitute_attributes=>true
 ,p_subscribe_plugin_settings=>true
 ,p_help_text=>wwv_flow_string.join(wwv_flow_t_varchar2(

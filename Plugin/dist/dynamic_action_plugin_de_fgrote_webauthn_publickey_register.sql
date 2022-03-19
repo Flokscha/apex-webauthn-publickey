@@ -54,8 +54,8 @@ wwv_flow_api.create_plugin(
 ,p_category=>'EXECUTE'
 ,p_supported_ui_types=>'DESKTOP'
 ,p_api_version=>2
-,p_render_function=>'WEBAUTHN_PK_DEV.register_da_render'
-,p_ajax_function=>'WEBAUTHN_PK_DEV.register_da_ajax'
+,p_render_function=>'WEBAUTHN_PK.register_da_render'
+,p_ajax_function=>'WEBAUTHN_PK.register_da_ajax'
 ,p_substitute_attributes=>true
 ,p_subscribe_plugin_settings=>true
 ,p_help_text=>wwv_flow_string.join(wwv_flow_t_varchar2(

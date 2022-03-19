@@ -53,8 +53,8 @@ wwv_flow_api.create_plugin(
 ,p_display_name=>'Web Authentication Public Key Region'
 ,p_supported_ui_types=>'DESKTOP'
 ,p_api_version=>2
-,p_render_function=>'WEBAUTHN_PK_DEV.login_region_render'
-,p_ajax_function=>'WEBAUTHN_PK_DEV.login_region_ajax'
+,p_render_function=>'WEBAUTHN_PK.login_region_render'
+,p_ajax_function=>'WEBAUTHN_PK.login_region_ajax'
 ,p_standard_attributes=>'SOURCE_PLAIN:ESCAPE_OUTPUT:VALUE_CSS:VALUE_ATTRIBUTE'
 ,p_substitute_attributes=>true
 ,p_subscribe_plugin_settings=>true
